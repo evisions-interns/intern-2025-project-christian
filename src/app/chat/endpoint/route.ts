@@ -2,9 +2,17 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { env } from "@/env";
 import { streamText, tool, type Message } from "ai";
 import z from "zod";
+import { Index } from "@upstash/vector";
 
 const openrouter = createOpenRouter({
   apiKey: env.OPENROUTER_API_KEY,
+});
+
+type Metadata = {};
+
+const index = new Index<Metadata>({
+  url: env.UPSTASH_VECTOR_REST_URL,
+  token: env.UPSTASH_VECTOR_REST_READONLY_TOKEN,
 });
 
 export async function POST(request: Request) {
@@ -18,16 +26,23 @@ export async function POST(request: Request) {
     system: "you are a helpful and wise assistant.  Make your responses short.",
     tools: {
       search: tool({
-        description: "search clash royale",
+        description: "search knowledge base",
         parameters: z.object({
           query: z.string(),
         }),
-        execute: async () => {
-          return "Use a Hog Rider Earthquake deck which consists of firecracker, cannon, hog rider, valkyrie, skeleton, ice spirit, earthquake, and log";
+        
+        execute: async (params) => {
+          const results = await index.query({
+            data: params.query,
+            topK: 5,
+            includeData: true,
+          });
+
+
+          return results;
         },
       }),
     },
-    maxSteps: 5,
   });
 
   return result.toDataStreamResponse();
